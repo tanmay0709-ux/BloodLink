@@ -32,6 +32,16 @@ public class DataInitializer implements CommandLineRunner {
                 .build();
             userRepository.save(admin);
             logger.info("Created default SYSTEM_ADMIN user: 'admin' with password 'admin123'");
+
+            
+        }
+
+        if (hasAdmin) {
+                User admin = userRepository.findByUsername("admin").orElseThrow();
+
+                logger.info("ADMIN FOUND: {}", admin.getUsername());
+                logger.info("PASSWORD MATCHES admin123: {}",
+                passwordEncoder.matches("admin123", admin.getPassword()));
         }
     }
 }
