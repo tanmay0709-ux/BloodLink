@@ -1,3 +1,4 @@
+
 package com.bloodlink.service;
 
 import com.bloodlink.dto.JwtResponse;
@@ -11,6 +12,8 @@ import com.bloodlink.repository.HospitalRepository;
 import com.bloodlink.repository.UserRepository;
 import com.bloodlink.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -25,6 +28,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class AuthService {
 
+    private static final Logger logger =
+        LoggerFactory.getLogger(AuthService.class);
+
     private final UserRepository userRepository;
     private final HospitalRepository hospitalRepository;
     private final BloodBankRepository bloodBankRepository;
@@ -38,22 +44,51 @@ public class AuthService {
      */
     @Transactional(readOnly = true)
     public JwtResponse login(LoginRequest request) {
-        Authentication authentication = authenticationManager.authenticate(
-            new UsernamePasswordAuthenticationToken(
-                request.getUsername(),
-                request.getPassword()
-            )
-        );
 
-        SecurityContextHolder.getContext().setAuthentication(authentication);
+        logger.info("========== LOGIN ATTEMPT ==========");
+        logger.info("Username received: [{}]", request.getUsername());
+        logger.info("Password length: {}", request.getPassword().length());
 
-        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-        String token = jwtTokenProvider.generateToken(userDetails);
+        try {
+            Authentication authentication =
+                authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                        request.getUsername(),
+                        request.getPassword()
+                    )
+                );
 
-        User user = userRepository.findByUsername(request.getUsername())
-            .orElseThrow(() -> new RuntimeException("User not found after authentication"));
+            logger.info("AUTHENTICATION SUCCESS: {}",
+                authentication.isAuthenticated());
 
-        return buildJwtResponse(token, user);
+            SecurityContextHolder.getContext()
+                .setAuthentication(authentication);
+
+            UserDetails userDetails =
+                (UserDetails) authentication.getPrincipal();
+
+            String token =
+                jwtTokenProvider.generateToken(userDetails);
+
+            User user = userRepository
+                .findByUsername(request.getUsername())
+                .orElseThrow(() ->
+                    new RuntimeException(
+                        "User not found after authentication"
+                    )
+                );
+
+            logger.info("LOGIN COMPLETED FOR: {}", user.getUsername());
+            logger.info("===================================");
+
+            return buildJwtResponse(token, user);
+
+        } catch (Exception e) {
+            logger.error("LOGIN FAILED: {}", e.getClass().getSimpleName());
+            logger.error("Failure message: {}", e.getMessage());
+            logger.info("===================================");
+            throw e;
+        }
     }
 
     /**
@@ -61,54 +96,98 @@ public class AuthService {
      */
     @Transactional
     public JwtResponse register(RegisterRequest request) {
+
         if (userRepository.existsByUsername(request.getUsername())) {
-            throw new IllegalArgumentException("Username '" + request.getUsername() + "' is already taken");
-        }
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new IllegalArgumentException("Email '" + request.getEmail() + "' is already registered");
+            throw new IllegalArgumentException(
+                "Username '" + request.getUsername() +
+                "' is already taken"
+            );
         }
 
-        // Determine role — only HOSPITAL_STAFF and BLOOD_BANK_STAFF are allowed
-        // via public registration. SYSTEM_ADMIN must be created by a SYSTEM_ADMIN
-        // through a privileged endpoint (not yet implemented).
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new IllegalArgumentException(
+                "Email '" + request.getEmail() +
+                "' is already registered"
+            );
+        }
+
+        // Only HOSPITAL_STAFF and BLOOD_BANK_STAFF
+        // are allowed through public registration.
         User.Role role = User.Role.HOSPITAL_STAFF;
-        if (request.getRole() != null && !request.getRole().isBlank()) {
-            String requestedRoleStr = request.getRole().toUpperCase();
+
+        if (request.getRole() != null &&
+            !request.getRole().isBlank()) {
+
+            String requestedRoleStr =
+                request.getRole().toUpperCase();
+
             if (requestedRoleStr.equals("SYSTEM_ADMIN")) {
                 throw new IllegalArgumentException(
                     "SYSTEM_ADMIN accounts cannot be created via public registration."
                 );
             }
+
             try {
                 role = User.Role.valueOf(requestedRoleStr);
             } catch (IllegalArgumentException ignored) {
-                // Unrecognised role string — fall back to HOSPITAL_STAFF
+                // Default to HOSPITAL_STAFF.
             }
         }
 
         Hospital pendingHospital = null;
         BloodBank pendingBloodBank = null;
-        User.ApprovalStatus approvalStatus = User.ApprovalStatus.APPROVED;
+
+        User.ApprovalStatus approvalStatus =
+            User.ApprovalStatus.APPROVED;
 
         if (role == User.Role.HOSPITAL_STAFF) {
+
             if (request.getHospitalId() == null) {
-                throw new IllegalArgumentException("Hospital selection is required for hospital staff registration");
+                throw new IllegalArgumentException(
+                    "Hospital selection is required for hospital staff registration"
+                );
             }
-            pendingHospital = hospitalRepository.findById(request.getHospitalId())
-                .orElseThrow(() -> new IllegalArgumentException("Hospital not found with id: " + request.getHospitalId()));
+
+            pendingHospital = hospitalRepository
+                .findById(request.getHospitalId())
+                .orElseThrow(() ->
+                    new IllegalArgumentException(
+                        "Hospital not found with id: " +
+                        request.getHospitalId()
+                    )
+                );
+
             if (!pendingHospital.getActive()) {
-                throw new IllegalArgumentException("Selected hospital is inactive");
+                throw new IllegalArgumentException(
+                    "Selected hospital is inactive"
+                );
             }
+
             approvalStatus = User.ApprovalStatus.PENDING;
+
         } else if (role == User.Role.BLOOD_BANK_STAFF) {
+
             if (request.getBloodBankId() == null) {
-                throw new IllegalArgumentException("Blood bank selection is required for blood bank staff registration");
+                throw new IllegalArgumentException(
+                    "Blood bank selection is required for blood bank staff registration"
+                );
             }
-            pendingBloodBank = bloodBankRepository.findById(request.getBloodBankId())
-                .orElseThrow(() -> new IllegalArgumentException("Blood bank not found with id: " + request.getBloodBankId()));
+
+            pendingBloodBank = bloodBankRepository
+                .findById(request.getBloodBankId())
+                .orElseThrow(() ->
+                    new IllegalArgumentException(
+                        "Blood bank not found with id: " +
+                        request.getBloodBankId()
+                    )
+                );
+
             if (!pendingBloodBank.getActive()) {
-                throw new IllegalArgumentException("Selected blood bank is inactive");
+                throw new IllegalArgumentException(
+                    "Selected blood bank is inactive"
+                );
             }
+
             approvalStatus = User.ApprovalStatus.PENDING;
         }
 
@@ -126,26 +205,70 @@ public class AuthService {
 
         userRepository.save(user);
 
-        // Load the saved user as UserDetails, then generate a JWT for auto-login.
-        // We cannot pass the User entity directly because it does not implement
-        // UserDetails — CustomUserDetailsService wraps it in a Spring Security user.
-        UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
-        String token = jwtTokenProvider.generateToken(userDetails);
+        UserDetails userDetails =
+            userDetailsService.loadUserByUsername(user.getUsername());
+
+        String token =
+            jwtTokenProvider.generateToken(userDetails);
 
         return buildJwtResponse(token, user);
     }
 
-    private JwtResponse buildJwtResponse(String token, User user) {
-        Long assignedHospitalId = user.getAssignedHospital() != null ? user.getAssignedHospital().getId() : null;
-        String assignedHospitalName = user.getAssignedHospital() != null ? user.getAssignedHospital().getName() : null;
-        Long pendingHospitalId = user.getPendingHospital() != null ? user.getPendingHospital().getId() : null;
-        String pendingHospitalName = user.getPendingHospital() != null ? user.getPendingHospital().getName() : null;
-        Long assignedBloodBankId = user.getAssignedBloodBank() != null ? user.getAssignedBloodBank().getId() : null;
-        String assignedBloodBankName = user.getAssignedBloodBank() != null ? user.getAssignedBloodBank().getName() : null;
-        Long pendingBloodBankId = user.getPendingBloodBank() != null ? user.getPendingBloodBank().getId() : null;
-        String pendingBloodBankName = user.getPendingBloodBank() != null ? user.getPendingBloodBank().getName() : null;
-        String approvalStatus = user.getApprovalStatus() != null ? user.getApprovalStatus().name()
-            : ((user.getAssignedHospital() != null || user.getAssignedBloodBank() != null) ? "APPROVED" : null);
+    /**
+     * Build JWT response.
+     */
+    private JwtResponse buildJwtResponse(
+        String token,
+        User user
+    ) {
+
+        Long assignedHospitalId =
+            user.getAssignedHospital() != null
+                ? user.getAssignedHospital().getId()
+                : null;
+
+        String assignedHospitalName =
+            user.getAssignedHospital() != null
+                ? user.getAssignedHospital().getName()
+                : null;
+
+        Long pendingHospitalId =
+            user.getPendingHospital() != null
+                ? user.getPendingHospital().getId()
+                : null;
+
+        String pendingHospitalName =
+            user.getPendingHospital() != null
+                ? user.getPendingHospital().getName()
+                : null;
+
+        Long assignedBloodBankId =
+            user.getAssignedBloodBank() != null
+                ? user.getAssignedBloodBank().getId()
+                : null;
+
+        String assignedBloodBankName =
+            user.getAssignedBloodBank() != null
+                ? user.getAssignedBloodBank().getName()
+                : null;
+
+        Long pendingBloodBankId =
+            user.getPendingBloodBank() != null
+                ? user.getPendingBloodBank().getId()
+                : null;
+
+        String pendingBloodBankName =
+            user.getPendingBloodBank() != null
+                ? user.getPendingBloodBank().getName()
+                : null;
+
+        String approvalStatus =
+            user.getApprovalStatus() != null
+                ? user.getApprovalStatus().name()
+                : ((user.getAssignedHospital() != null ||
+                    user.getAssignedBloodBank() != null)
+                    ? "APPROVED"
+                    : null);
 
         return new JwtResponse(
             token,
