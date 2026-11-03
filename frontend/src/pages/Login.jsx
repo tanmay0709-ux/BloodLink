@@ -3,6 +3,16 @@ import { useNavigate, Link } from 'react-router-dom'
 import { AuthContext } from '../context/AuthContext'
 import { authService } from '../services/authService'
 
+// Redirect destination by role after login
+function getDashboardPath(role) {
+  switch (role) {
+    case 'SYSTEM_ADMIN':      return '/dashboard'
+    case 'BLOOD_BANK_STAFF':  return '/dashboard'
+    case 'HOSPITAL_STAFF':    return '/dashboard'
+    default:                  return '/dashboard'
+  }
+}
+
 export default function Login() {
   const [form, setForm] = useState({ username: '', password: '' })
   const [error, setError] = useState('')
@@ -27,7 +37,7 @@ export default function Login() {
     try {
       const data = await authService.login(form.username, form.password)
       login(data)
-      navigate('/dashboard')
+      navigate(getDashboardPath(data?.role))
     } catch (err) {
       const msg =
         err.response?.data?.message ||

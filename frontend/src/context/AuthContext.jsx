@@ -18,9 +18,19 @@ export function AuthProvider({ children }) {
     // `data` is the JwtResponse object returned by authService.login / .register
     if (data) {
       setUser({
+        id: data.id,
         username: data.username,
         email: data.email,
         role: data.role,
+        approvalStatus: data.approvalStatus,
+        assignedHospitalId: data.assignedHospitalId,
+        assignedHospitalName: data.assignedHospitalName,
+        pendingHospitalId: data.pendingHospitalId,
+        pendingHospitalName: data.pendingHospitalName,
+        assignedBloodBankId: data.assignedBloodBankId,
+        assignedBloodBankName: data.assignedBloodBankName,
+        pendingBloodBankId: data.pendingBloodBankId,
+        pendingBloodBankName: data.pendingBloodBankName,
       })
     }
   }, [])

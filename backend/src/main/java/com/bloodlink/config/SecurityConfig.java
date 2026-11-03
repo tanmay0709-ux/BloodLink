@@ -8,6 +8,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -21,6 +22,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity   // enables @PreAuthorize / @RolesAllowed on controllers
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -28,33 +30,20 @@ public class SecurityConfig {
     private final UserDetailsService userDetailsService;
     private final CorsConfigurationSource corsConfigurationSource;
 
-    /**
-     * Main security filter chain.
-     *
-     * TODO: Harden security before production — replace permitAll() with
-     *       role-based access control, enable CSRF for non-API surfaces, etc.
-     */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            // Apply CORS config from CorsConfig bean
             .cors(cors -> cors.configurationSource(corsConfigurationSource))
-            // Disable CSRF (stateless JWT API does not need it)
             .csrf(AbstractHttpConfigurer::disable)
-            // Session management: stateless (JWT-based)
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
-            // Authorization rules
-            // TODO: Restrict sensitive endpoints to authenticated/authorized roles in production
             .authorizeHttpRequests(auth -> auth
+                // Public endpoints — no token required
                 .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/api/public/**").permitAll()
-                .requestMatchers("/actuator/**").permitAll()
-                // Temporarily permit all for development — tighten before production
-                .anyRequest().permitAll()
+                // Everything else requires a valid JWT
+                .anyRequest().authenticated()
             )
-            // Plug in the JWT filter before the standard username/password filter
             .authenticationProvider(authenticationProvider())
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 

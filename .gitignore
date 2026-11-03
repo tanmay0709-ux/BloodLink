@@ -27,3 +27,14 @@ desktop.ini
 # ===== Logs =====
 *.log
 logs/
+
+# ===== Authentication Tokens =====
+*token*.txt
+admin-token.txt
+
+# ===== Local Secrets =====
+backend/.env
+
+# ===== Local Dev Artifacts (never commit) =====
+powershell.cmd
+module6-test-data.json

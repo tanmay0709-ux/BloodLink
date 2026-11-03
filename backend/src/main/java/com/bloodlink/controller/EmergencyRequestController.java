@@ -6,6 +6,7 @@ import com.bloodlink.service.EmergencyRequestService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,59 +18,60 @@ public class EmergencyRequestController {
 
     private final EmergencyRequestService emergencyRequestService;
 
-    /** GET /api/emergency — list all emergency requests */
+    /** Any authenticated user can view emergency requests */
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<EmergencyRequest>>> getAll() {
         return ResponseEntity.ok(ApiResponse.ok(emergencyRequestService.getAllRequests()));
     }
 
-    /** GET /api/emergency/{id} — get a single request */
     @GetMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<EmergencyRequest>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.ok(emergencyRequestService.getRequestById(id)));
     }
 
-    /** GET /api/emergency/hospital/{hospital} — filter by hospital */
     @GetMapping("/hospital/{hospital}")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<EmergencyRequest>>> getByHospital(@PathVariable String hospital) {
         return ResponseEntity.ok(ApiResponse.ok(emergencyRequestService.getRequestsByHospital(hospital)));
     }
 
-    /** GET /api/emergency/status/{status} — filter by status */
     @GetMapping("/status/{status}")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<EmergencyRequest>>> getByStatus(
             @PathVariable EmergencyRequest.RequestStatus status) {
         return ResponseEntity.ok(ApiResponse.ok(emergencyRequestService.getRequestsByStatus(status)));
     }
 
-    /** POST /api/emergency — create a new emergency request */
+    /** HOSPITAL_STAFF and SYSTEM_ADMIN can create requests */
     @PostMapping
+    @PreAuthorize("hasAnyRole('HOSPITAL_STAFF', 'SYSTEM_ADMIN')")
     public ResponseEntity<ApiResponse<EmergencyRequest>> create(@RequestBody EmergencyRequest request) {
         EmergencyRequest created = emergencyRequestService.createRequest(request);
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResponse.ok("Emergency request created", created));
     }
 
-    /** PATCH /api/emergency/{id}/status?status=APPROVED — update request status */
+    /** BLOOD_BANK_STAFF and SYSTEM_ADMIN can approve/reject/fulfil */
     @PatchMapping("/{id}/status")
+    @PreAuthorize("hasAnyRole('BLOOD_BANK_STAFF', 'SYSTEM_ADMIN')")
     public ResponseEntity<ApiResponse<EmergencyRequest>> updateStatus(
-            @PathVariable Long id,
-            @RequestParam EmergencyRequest.RequestStatus status) {
+            @PathVariable Long id, @RequestParam EmergencyRequest.RequestStatus status) {
         return ResponseEntity.ok(ApiResponse.ok("Status updated",
             emergencyRequestService.updateStatus(id, status)));
     }
 
-    /** PUT /api/emergency/{id} — update a request */
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('HOSPITAL_STAFF', 'SYSTEM_ADMIN')")
     public ResponseEntity<ApiResponse<EmergencyRequest>> update(
-            @PathVariable Long id,
-            @RequestBody EmergencyRequest request) {
+            @PathVariable Long id, @RequestBody EmergencyRequest request) {
         return ResponseEntity.ok(ApiResponse.ok("Request updated",
             emergencyRequestService.updateRequest(id, request)));
     }
 
-    /** DELETE /api/emergency/{id} — delete a request */
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         emergencyRequestService.deleteRequest(id);
         return ResponseEntity.ok(ApiResponse.ok("Emergency request deleted", null));

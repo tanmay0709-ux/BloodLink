@@ -20,12 +20,33 @@ public class RegisterRequest {
 
     private String role; // Optional: default to VIEWER if not provided
 
+    private Long hospitalId; // Required when role is HOSPITAL_STAFF
+
+    private Long bloodBankId; // Required when role is BLOOD_BANK_STAFF
+
     public RegisterRequest() {}
 
     public RegisterRequest(String username, String email, String password) {
         this.username = username;
         this.email = email;
         this.password = password;
+    }
+
+    public RegisterRequest(String username, String email, String password, String role, Long hospitalId) {
+        this.username = username;
+        this.email = email;
+        this.password = password;
+        this.role = role;
+        this.hospitalId = hospitalId;
+    }
+
+    public RegisterRequest(String username, String email, String password, String role, Long hospitalId, Long bloodBankId) {
+        this.username = username;
+        this.email = email;
+        this.password = password;
+        this.role = role;
+        this.hospitalId = hospitalId;
+        this.bloodBankId = bloodBankId;
     }
 
     public String getUsername() { return username; }
@@ -39,4 +60,10 @@ public class RegisterRequest {
 
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }
+
+    public Long getHospitalId() { return hospitalId; }
+    public void setHospitalId(Long hospitalId) { this.hospitalId = hospitalId; }
+
+    public Long getBloodBankId() { return bloodBankId; }
+    public void setBloodBankId(Long bloodBankId) { this.bloodBankId = bloodBankId; }
 }
